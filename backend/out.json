@@ -1,0 +1,113 @@
+{
+  "status": 200,
+  "body": {
+    "title": "Semester Examination - Design and Analysis of Algorithms",
+    "sections": [
+      {
+        "sectionTitle": "Section A",
+        "questions": [
+          {
+            "question": "Define Big-O, Big-Omega, and Big-Theta notations with suitable examples.",
+            "marks": 4,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "Differentiate between Dynamic Programming and Greedy approach.",
+            "marks": 4,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "List four applications of Depth-First Search (DFS) algorithm.",
+            "marks": 4,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "Explain the concept of Amortized Analysis with a suitable example.",
+            "marks": 4,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "What are NP-Complete problems? Give an example.",
+            "marks": 4,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          }
+        ],
+        "instructions": "Attempt all questions. Each question carries 4 marks."
+      },
+      {
+        "sectionTitle": "Section B",
+        "questions": [
+          {
+            "question": "Solve the following recurrence relations using the Master Theorem: (i) T(n) = 3T(n/4) + n log n (ii) T(n) = 2T(n/2) + n",
+            "marks": 10,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "Explain Dijkstra's single-source shortest path algorithm. Trace its execution on a graph of your choice.",
+            "marks": 10,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "Describe Kruskal's algorithm for finding the Minimum Spanning Tree. Apply it to a given weighted undirected graph with at least 5 vertices.",
+            "marks": 10,
+            "hasInternalChoice": false,
+            "internalChoice": null
+          },
+          {
+            "question": "Write the algorithm for finding the Longest Common Subsequence (LCS) of two strings using Dynamic Programming. Illustrate with an example.",
+            "marks": 10,
+            "hasInternalChoice": true,
+            "internalChoice": {
+              "marks": 10,
+              "question": "Explain the 0/1 Knapsack problem and formulate its solution using Dynamic Programming."
+            }
+          },
+          {
+            "question": "Explain the N-Queens problem and outline a backtracking algorithm to solve it. Illustrate with N=4.",
+            "marks": 10,
+            "hasInternalChoice": true,
+            "internalChoice": {
+              "marks": 10,
+              "question": "Describe the Subset Sum problem and discuss how backtracking can be used to find a solution."
+            }
+          }
+        ],
+        "instructions": "Attempt any five questions. Each question carries 10 marks. Some questions have internal choices."
+      },
+      {
+        "sectionTitle": "Section C",
+        "questions": [
+          {
+            "question": "Explain the Floyd-Warshall algorithm for all-pairs shortest path problem. Illustrate its working with an example graph containing at least 4 vertices.",
+            "marks": 15,
+            "hasInternalChoice": true,
+            "internalChoice": {
+              "marks": 15,
+              "question": "Describe the Bellman-Ford algorithm to find shortest paths from a single source in a graph with negative edge weights. Explain its limitations and trace it on an example graph."
+            }
+          },
+          {
+            "question": "Explain the Ford-Fulkerson algorithm for finding the maximum flow in a flow network. Illustrate with an example.",
+            "marks": 15,
+            "hasInternalChoice": true,
+            "internalChoice": {
+              "marks": 15,
+              "question": "State and prove the Max-Flow Min-Cut Theorem. Discuss its significance in network flow problems."
+            }
+          }
+        ],
+        "instructions": "Attempt any two questions. Each question carries 15 marks. Each question has an internal choice."
+      }
+    ],
+    "duration": "3 hours",
+    "subject": "Design and Analysis of Algorithms",
+    "totalMarks": 100
+  }
+}

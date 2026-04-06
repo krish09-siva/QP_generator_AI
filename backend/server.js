@@ -1,116 +1,195 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 const multer = require('multer');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // <-- support form-urlencoded too
 
 const PORT = process.env.PORT || 5000;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (!process.env.GEMINI_API_KEY) {
+  console.error('❌ GEMINI_API_KEY is missing from .env!');
+  process.exit(1);
+}
+console.log('✅ GEMINI_API_KEY loaded, starts with:', process.env.GEMINI_API_KEY.substring(0, 8) + '...');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
 const upload = multer({ storage: multer.memoryStorage() });
+
+const paperSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    title: { type: SchemaType.STRING },
+    subject: { type: SchemaType.STRING },
+    duration: { type: SchemaType.STRING },
+    totalMarks: { type: SchemaType.NUMBER },
+    sections: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          sectionTitle: { type: SchemaType.STRING },
+          instructions: { type: SchemaType.STRING },
+          questions: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                question: { type: SchemaType.STRING },
+                marks: { type: SchemaType.NUMBER },
+                hasInternalChoice: { type: SchemaType.BOOLEAN },
+                internalChoice: {
+                  type: SchemaType.OBJECT,
+                  nullable: true,
+                  properties: {
+                    question: { type: SchemaType.STRING },
+                    marks: { type: SchemaType.NUMBER }
+                  }
+                }
+              },
+              required: ["question", "marks", "hasInternalChoice"]
+            }
+          }
+        },
+        required: ["sectionTitle", "questions"]
+      }
+    }
+  },
+  required: ["title", "sections"]
+};
+
+// Health check / Welcome route
+app.get('/', (req, res) => {
+  res.send('AI Question Paper Generator Backend is running! Send POST requests to /api/generate');
+});
 
 app.post('/api/generate', upload.single('syllabusFile'), async (req, res) => {
   try {
     let { subject, examType, syllabus, difficulty, sections, chapterAllocation } = req.body;
-    
-    // Parse JSON arrays sent from FormData
+
+    console.log('\n📥 Received request:');
+    console.log('  subject:', subject);
+    console.log('  examType:', examType);
+    console.log('  difficulty:', difficulty);
+    console.log('  sections raw:', typeof sections, '|', String(sections).substring(0, 60));
+
+    // Parse JSON strings (from FormData or URL-encoded body)
     if (typeof sections === 'string') {
-      sections = JSON.parse(sections);
+      try { sections = JSON.parse(sections); }
+      catch (e) { return res.status(400).json({ error: 'Invalid sections format: ' + e.message }); }
     }
     if (typeof chapterAllocation === 'string') {
-      chapterAllocation = JSON.parse(chapterAllocation);
+      try { chapterAllocation = JSON.parse(chapterAllocation); }
+      catch (e) { chapterAllocation = []; }
     }
 
-    if (!subject || !sections || sections.length === 0) {
-      return res.status(400).json({ error: 'Missing required configuration' });
+    const totalMarksConstraint = req.body.marks ? req.body.marks : req.body.totalMarks;
+
+    if (!subject) {
+      return res.status(400).json({ error: 'Missing required field: subject is required.' });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: paperSchema
+      }
+    });
 
-    let promptContext = `Syllabus/Units: ${syllabus || 'Provided in attached file'}`;
+    let promptContext = `Syllabus/Units: ${syllabus || 'General topics for the subject'}`;
     let filePart = null;
 
     if (req.file) {
-      // Provide file inline
       filePart = {
         inlineData: {
           data: req.file.buffer.toString("base64"),
           mimeType: req.file.mimetype
         }
       };
-      promptContext = "Syllabus details are provided in the attached file. Carefully analyze the attached file to generate the questions.";
+      promptContext = "Carefully analyze the attached syllabus file to generate the questions.";
     }
 
     let allocationConstraint = '';
     if (chapterAllocation && Array.isArray(chapterAllocation) && chapterAllocation.length > 0) {
       allocationConstraint = `
-      CHAPTER DISTRIBUTION CONSTRAINTS:
-      You must strictly distribute the questions across the specified chapters/topics as follows:
-      ${chapterAllocation.map(c => `- Chapter/Topic '${c.chapterName}': Exactly ${c.questionCount} questions across the entire paper.`).join('\n')}
-      Ensure the total questions you generate exactly fulfill these chapter distributions.
+      CHAPTER DISTRIBUTION:
+      ${chapterAllocation.map(c => `- Chapter '${c.chapterName}': Exactly ${c.questionCount} questions.`).join('\n')}
       `;
     }
 
+    const sectionsInfo = (sections && sections.length > 0) 
+                         ? JSON.stringify(sections) 
+                         : `Please create standard sections (e.g., Section A, Section B) that sum up to ${totalMarksConstraint || 100} marks.`;
+
     const promptText = `
-      You are an expert ${subject} teacher. You need to create a question paper for a ${examType || 'General'} examination based on the following criteria:
+      You are an expert ${subject} teacher. Create a ${examType || 'General'} examination question paper:
       - ${promptContext}
-      - Difficulty Level: ${difficulty}
-      - Sections format: ${JSON.stringify(sections)}
+      - Difficulty: ${difficulty || 'Medium'}
+      - Sections constraint: ${sectionsInfo}
       ${allocationConstraint}
-      
-      For each section, generate the required number of questions that add up to the total marks for that section.
-      The questions should be clear, non-repetitive, and appropriate for the specified difficulty.
-      If a section in the sections format requests 'hasInternalChoice: true', EVERY question within that section MUST have exactly 2 choices (Option A and Option B).
-      
-      Output ONLY a valid strictly formatted JSON object following this exact schema:
-      {
-        "title": "A string representing the paper title (e.g., '${subject} ${examType || 'Examination'}')",
-        "subject": "${subject}",
-        "totalMarks": Number (calculate total from all sections),
-        "duration": "String (e.g., '3 Hours')",
-        "sections": [
-          {
-            "name": "String (e.g., 'Section A')",
-            "instructions": "String instructions for this section",
-            "questions": [
-              {
-                "id": "Number",
-                "hasInternalChoice": "Boolean (true or false based on the section requirement)",
-                "choices": ["String (First option)", "String (Second option if hasInternalChoice is true)"],
-                "marks": Number
-              }
-            ]
-          }
-        ]
-      }
-      
-      If 'hasInternalChoice' is false, the 'choices' array should still contain exactly 1 element: the actual question.
-      If 'hasInternalChoice' is true, the 'choices' array MUST contain exactly 2 distinct equivalent choices.
-      Ensure the total marks match the section configurations.
-      Do not include any markdown formatting around the JSON string. Do not include \`\`\`json. Return strictly the unformatted JSON string.
+
+      Rules:
+      - If strict sections were provided with 'numQuestions', generate exactly that many questions per section.
+      - Each question's marks must be appropriate. If 'marksPerQuestion' is given, adhere to it strictly.
+      - If section hasInternalChoice is true, set hasInternalChoice to true and provide an internalChoice object with 'question' and 'marks'.
+      - If section hasInternalChoice is false, set hasInternalChoice to false and internalChoice to null.
+      - Questions must be clear, academic, and non-repetitive.
+      - Calculate totalMarks as sum of all section marks. Ensure it matches ${totalMarksConstraint || "the sum"}.
+      - Duration should be proportional to total marks (e.g., 1 hour per 30 marks).
     `;
 
     const requestParts = filePart ? [filePart, promptText] : [promptText];
 
+    console.log('🤖 Calling Gemini API (model: gemini-2.5-flash)...');
+
     const result = await model.generateContent(requestParts);
-    let text = result.response.text();
-    text = text.trim();
-    if (text.startsWith('```json')) {
-      text = text.replace(/^```json/g, '').replace(/```$/g, '').trim();
+    const rawText = result.response.text();
+
+    console.log('\n--- RAW GEMINI RESPONSE ---');
+    console.log(rawText.length > 500 ? rawText.substring(0, 500) + '... (truncated)' : rawText);
+    console.log('✅ Gemini responded, parsing JSON...');
+
+    let paperJSON;
+    try {
+      paperJSON = JSON.parse(rawText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON. Raw response was:', rawText);
+      return res.status(500).json({ error: 'Failed to generate question paper. Invalid JSON returned by AI.' });
     }
-    const paperJSON = JSON.parse(text);
+
+    console.log('✅ Paper generated:', paperJSON.title, '| Sections:', paperJSON.sections?.length);
 
     return res.json(paperJSON);
+
   } catch (error) {
-    console.error('Error generating question paper:', error);
-    return res.status(500).json({ error: 'Failed to generate question paper' });
+    console.error('\n❌ Error generating question paper:');
+    console.error('  Message:', error.message);
+    console.error('  Status:', error.status || 'N/A');
+    console.error('  Code:', error.code || 'N/A');
+    if (error.errorDetails) console.error('  Details:', JSON.stringify(error.errorDetails));
+    console.error('  Full Error Object:', error);
+
+    const userMessage = error.message?.includes('API_KEY') || error.message?.includes('403')
+      ? 'Invalid or expired Gemini API key. Please check your .env file.'
+      : error.message?.includes('429')
+        ? 'Gemini API rate limit reached. Please wait and try again.'
+        : 'Failed to generate question paper. Please try again.';
+
+    return res.status(500).json({ error: userMessage });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
 });
+
+module.exports = app;

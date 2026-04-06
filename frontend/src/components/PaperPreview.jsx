@@ -81,7 +81,7 @@ export default function PaperPreview({ paperData, onReset }) {
                     onClick={() => toggleSection(idx)}
                   >
                     <h3 className="text-xl font-bold border-b border-slate-300 pb-1 w-full flex justify-between">
-                      {section.name}
+                      {section.sectionTitle || section.name}
                       <span className="lg:hidden p-1 rounded hover:bg-slate-100">
                         {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                       </span>
@@ -103,9 +103,19 @@ export default function PaperPreview({ paperData, onReset }) {
                         )}
                         
                         <div className="space-y-6 mt-4">
-                          {section.questions?.map((q, qIdx) => (
+                          {section.questions?.map((q, qIdx) => {
+                            const choices = [];
+                            if (q.question) choices.push(q.question);
+                            if (q.hasInternalChoice && q.internalChoice?.question) {
+                              choices.push(q.internalChoice.question);
+                            }
+                            if (choices.length === 0 && q.choices) {
+                              choices.push(...q.choices);
+                            }
+                            
+                            return (
                             <div key={qIdx} className="group hover:bg-slate-50 p-3 -mx-3 rounded-lg transition-colors relative space-y-3 border border-transparent hover:border-slate-200">
-                              {q.choices?.map((choiceText, cIdx) => (
+                              {choices.map((choiceText, cIdx) => (
                                 <React.Fragment key={cIdx}>
                                   <div className="flex gap-4">
                                     <span className="font-bold min-w-[32px]">{cIdx === 0 ? `Q${qIdx + 1}.` : ''}</span>
@@ -116,7 +126,7 @@ export default function PaperPreview({ paperData, onReset }) {
                                        <span className="font-bold whitespace-nowrap opacity-60">[{q.marks}]</span>
                                     )}
                                   </div>
-                                  {cIdx < q.choices.length - 1 && (
+                                  {cIdx < choices.length - 1 && (
                                     <div className="flex gap-4 items-center pl-8 py-1">
                                       <div className="flex-1 border-t border-slate-300 border-dashed"></div>
                                       <span className="font-bold text-slate-400 tracking-widest uppercase text-sm">Or</span>
@@ -127,7 +137,8 @@ export default function PaperPreview({ paperData, onReset }) {
                                 </React.Fragment>
                               ))}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </motion.div>
                     )}

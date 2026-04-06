@@ -76,7 +76,7 @@ export const exportToDOCX = async (paperData, filename = 'Question_Paper.docx') 
       paperData.sections.forEach(section => {
         children.push(
           new Paragraph({
-            text: section.name,
+            text: section.sectionTitle || section.name,
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 400, after: 200 },
           })
@@ -94,7 +94,16 @@ export const exportToDOCX = async (paperData, filename = 'Question_Paper.docx') 
 
         if (section.questions && section.questions.length > 0) {
           section.questions.forEach((q, idx) => {
-            q.choices?.forEach((choice, cIdx) => {
+            const choices = [];
+            if (q.question) choices.push(q.question);
+            if (q.hasInternalChoice && q.internalChoice?.question) {
+              choices.push(q.internalChoice.question);
+            }
+            if (choices.length === 0 && q.choices) {
+              choices.push(...q.choices);
+            }
+
+            choices.forEach((choice, cIdx) => {
               children.push(
                 new Paragraph({
                   children: [
@@ -102,11 +111,11 @@ export const exportToDOCX = async (paperData, filename = 'Question_Paper.docx') 
                     new TextRun({ text: choice }),
                     ...(cIdx === 0 ? [new TextRun({ text: ` [${q.marks} Marks]`, italics: true })] : [])
                   ],
-                  spacing: { after: cIdx === q.choices.length - 1 ? 160 : 60 },
+                  spacing: { after: cIdx === choices.length - 1 ? 160 : 60 },
                 })
               );
               
-              if (cIdx < q.choices.length - 1) {
+              if (cIdx < choices.length - 1) {
                  children.push(
                   new Paragraph({
                     text: '         --- OR ---',

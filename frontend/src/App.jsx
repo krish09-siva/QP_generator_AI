@@ -16,13 +16,19 @@ function App() {
     setError('');
     setStep(2);
     try {
-      const response = await fetch('http://localhost:5000/api/generate', {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/generate`, {
         method: 'POST',
         body: config,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate paper. Please try again.');
+        let errMsg = 'Failed to generate paper. Please try again.';
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) errMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
